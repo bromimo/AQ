@@ -6,7 +6,9 @@
 
     */
 
-    class RequestRegister extends AlefRequest
+use src\Assistant\Request;
+
+class RequestRegister extends AlefRequest
     {
         const KEY_ID = "id";
         const KEY_STATUS = "status";
@@ -21,7 +23,12 @@
             $lastname = (string) $lastname; // Фамилия ||| Пример значения: Пупкин
 
             // Пишите код только ниже этой строки, чтобы избежать конфликтов при git merge
-            
+
+            $request = new Request();
+            $data = $request->validated([
+                'login' => ['required', 'alpha', 'min:8']
+            ]);
+
             $this->grantAccess();
 
 

@@ -1,4 +1,12 @@
 <?php
+
+function autoloadMainClasses(string $class_name): void
+{
+    $class_name = str_replace('\\', '/', $class_name);
+    @include_once $class_name . '.php';
+}
+spl_autoload_register('autoloadMainClasses');
+
 $alefAction = (string)$_REQUEST["alef_action"];
 $pretty = (strpos($alefAction, "!") !== false);
 $alefAction = str_replace("!", "", $alefAction);
