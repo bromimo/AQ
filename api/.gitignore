@@ -1,0 +1,5 @@
+db.cfg.php
+logs/*
+uploads/*
+vendor/*
+composer.lock
