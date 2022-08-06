@@ -26,7 +26,8 @@ class RequestRegister extends AlefRequest
 
             $request = new Request();
             $data = $request->validated([
-                'login' => ['required', 'alpha', 'min:8']
+                'login' => ['required'],
+                'password' => ['accepted_if:login,Vasya']
             ]);
 
             $this->grantAccess();
