@@ -8,7 +8,7 @@ class Request
 
     public function __construct()
     {
-        $this->input = $_REQUEST;
+        $this->input = json_decode(file_get_contents('php://input'), true);
     }
 
     /** Возвращает сырые данные.
@@ -39,10 +39,11 @@ class Request
                 $result[$name] = $request;
             }
         }
+
         return $result;
     }
 
-    /** Поле для проверки должно быть "yes" или "on".
+    /** Поле для проверки должно быть "yes", "on", 1 или <i>true</i>.
      * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
      *     Использование 'accepted'
      * @param string      $name
@@ -53,12 +54,15 @@ class Request
      */
     private function validateAccepted(string $name, $request, ?string $param = null): void
     {
-        if ($request !== 'on' && $request !== 'yes') {
+        if (gettype($request) === 'string') {
+            $request = strtolower($request);
+        }
+        if ($request !== 'on' && $request !== 'yes' && $request !== 1 && $request !== true) {
             throw new RequestException(ERR_VALIDATOR_ACCEPTED, $name);
         }
     }
 
-    /** Поле для проверки должно быть "yes" или "on", если другое поле для проверки равно указанному значению.
+    /** Поле для проверки должно быть "yes", "on", 1 или <i>true</i>, если другое поле для проверки равно указанному значению.
      * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
      *     Использование 'accepted_if:поле,значение'
      * @param string      $name
@@ -75,13 +79,58 @@ class Request
         $arr = explode(',', $param);
         $anotherName = $arr[0] ?? false;
         $value = $arr[1] ?? false;
-        if ($anotherName && $value && $this->input[$anotherName] === $value) {
-            if ($request !== 'on' && $request !== 'yes') {
+        if ($anotherName && $value && isset($this->input[$anotherName]) && $this->input[$anotherName] === $value) {
+            if (gettype($request) === 'string') {
+                $request = strtolower($request);
+            }
+            if ($request !== 'on' && $request !== 'yes' && $request !== 1 && $request !== true) {
                 throw new RequestException(ERR_VALIDATOR_ACCEPTED_IF, $name, null, $anotherName, $value);
             }
         }
     }
 
+    /** Поле при проверке должно иметь допустимую запись A или AAAA в соответствии с функцией dns_get_record PHP.
+     * Имя хоста предоставленного URL извлекается с помощью функции parse_urlPHP перед передачей dns_get_record.
+     *     Использование 'active_url'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateActive_url(string $name, $request, ?string $param = null): void
+    {
+        //TODO Описать функцию active_url
+    }
+
+    /** Поле при проверке должно быть значением после заданной даты. Даты будут переданы в функцию strtotime PHP
+     * для преобразования в действительный DateTime экземпляр
+     *     Использование 'after:date'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateAfter(string $name, $request, ?string $param = null): void
+    {
+        //TODO Описать функцию after:date
+    }
+
+    /** Поле для проверки должно иметь значение после или равное заданной дате.
+     * Дополнительные сведения см. в функции правила 'after:date'.
+     *     Использование 'after_or_equal:date'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateAfter_or_equal(string $name, $request, ?string $param = null): void
+    {
+        //TODO Описать функцию after_or_equal:date
+    }
+    
     /** Поле для проверки должно состоять только из буквенных символов.
      *     Использование 'alpha'
      * @param string      $name
@@ -108,9 +157,25 @@ class Request
      */
     private function validateMin(string $name, $request, ?string $param = null): void
     {
-        if (strlen($request) < $param) {
-            throw new RequestException(ERR_VALIDATOR_MIN, $name, $param);
+        // TODO Сделать проверку размера файла
+        switch (gettype($request)) {
+            case 'array':
+                if (count($request) < $param) {
+                    throw new RequestException(ERR_VALIDATOR_MIN_COUNT, $name, $param);
+                }
+                return;
+            case 'integer':
+                if ($request < $param) {
+                    throw new RequestException(ERR_VALIDATOR_MIN_INTEGER, $name, $param);
+                }
+                return;
+            case 'string':
+                if (strlen($request) < $param) {
+                    throw new RequestException(ERR_VALIDATOR_MIN_STRING, $name, $param);
+                }
+                return;
         }
+        throw new RequestException(ERR_VALIDATOR_MIN, $name, $param);
     }
 
     /** Поле для проверки должно присутствовать во входных данных и не быть пустым.
@@ -130,6 +195,52 @@ class Request
     {
         if (empty($request)) {
             throw new RequestException(ERR_VALIDATOR_REQUIRED, $name);
+        }
+    }
+
+    /** Поле для проверки должно быть строкой.
+     *     Использование 'string'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateString(string $name, $request, ?string $param = null): void
+    {
+        if (gettype($request) !== 'string') {
+            throw new RequestException(ERR_VALIDATOR_STRING, $name);
+        }
+    }
+
+    /** Поле для проверки должно быть целым числом.
+     *     Использование 'integer'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateInteger(string $name, $request, ?string $param = null): void
+    {
+        if (gettype($request) !== 'integer') {
+            throw new RequestException(ERR_VALIDATOR_INTEGER, $name);
+        }
+    }
+
+    /** Поле при проверке должно иметь возможность преобразования в логическое значение.
+     * Допустимыми входными данными являются true, false, 1, 0, "1", и "0".
+     *     Использование 'boolean'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateBoolean(string $name, $request, ?string $param = null): void
+    {
+        if (gettype($request) !== 'boolean' && $request !== 1 && $request !== 0 && $request !== '1' && $request !== '0') {
+            throw new RequestException(ERR_VALIDATOR_BOOLEAN, $name);
         }
     }
 }

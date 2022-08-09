@@ -10,4 +10,12 @@ class Common
             return true;
         });
     }
+
+    public static function dd($data): void
+    {
+        echo '<pre>';
+        print_r($data);
+        echo '</pre>';
+        exit();
+    }
 }
