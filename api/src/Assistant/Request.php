@@ -146,6 +146,36 @@ class Request
         }
     }
 
+    /** Поле для проверки должно состоять только из буквенных символов и символов подчеркивания.
+     *     Использование 'alpha_dash'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateAlpha_dash(string $name, $request, ?string $param = null): void
+    {
+        if (!preg_match('/^[\pL_]+$/u', $request)) {
+            throw new RequestException(ERR_VALIDATOR_ALPHA_DASH, $name);
+        }
+    }
+
+    /** Поле для проверки должно состоять только из буквенных символов и пробелов.
+     *     Использование 'alpha_space'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateAlpha_space(string $name, $request, ?string $param = null): void
+    {
+        if (!preg_match('/^[\pL\s]+$/u', $request)) {
+            throw new RequestException(ERR_VALIDATOR_ALPHA_SPACE, $name);
+        }
+    }
+
     /** Поле для проверки должно иметь минимальное значение.
      * Строки, числа, массивы и файлы оцениваются таким же образом, как 'size' правило.
      *     Использование 'min:size'
@@ -210,6 +240,35 @@ class Request
     {
         if (gettype($request) !== 'string') {
             throw new RequestException(ERR_VALIDATOR_STRING, $name);
+        }
+    }
+
+    /** Поле для проверки должно быть массивом и содержать только перечисленные поля.
+     *     Использование 'array:field1,...'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateArray(string $name, $request, ?string $param = null): void
+    {
+        if (gettype($request) !== 'array') {
+            throw new RequestException(ERR_VALIDATOR_ARRAY, $name);
+        }
+        if (!$param) {
+            return;
+        }
+        $list = explode(',', $param);
+        foreach ($list as $item) {
+            if (!isset($request[$item])) {
+                throw new RequestException(ERR_VALIDATOR_ARRAY_FIELD, $name, $item);
+            }
+        }
+        foreach ($request as $key => $item) {
+            if (!in_array($key, $list, true)) {
+                throw new RequestException(ERR_VALIDATOR_ARRAY_EXCESS, $name, $key);
+            }
         }
     }
 

@@ -26,7 +26,7 @@ class RequestRegister extends AlefRequest
 
             $request = new Request();
             $data = $request->validated([
-                'login' => ['boolean'],
+                'login' => ['alpha_space'],
                 'password' => ['required'],
                 'firstname' => ['required'],
                 'lastname' => ['required'],
