@@ -2,9 +2,17 @@
 
 namespace src\Assistant;
 
+use Exception;
+use Symfony\Component\HttpFoundation\File\File;
+
 class Request
 {
     private array $input;
+
+    const TYPE_NUMERIC = 'numeric';
+    const TYPE_ARRAY = 'array';
+    const TYPE_FILE = 'file';
+    const TYPE_STRING = 'string';
 
     public function __construct()
     {
@@ -43,7 +51,7 @@ class Request
         return $result;
     }
 
-    /** Поле для проверки должно быть "yes", "on", 1 или <i>true</i>.
+    /** Поле для проверки должно быть "yes", "on", "1", 1, "true" или true.
      * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
      *     Использование 'accepted'
      * @param string      $name
@@ -54,15 +62,16 @@ class Request
      */
     private function validateAccepted(string $name, $request, ?string $param = null): void
     {
-        if (gettype($request) === 'string') {
-            $request = strtolower($request);
+        $acceptable = ['yes', 'on', '1', 1, true, 'true'];
+
+        if (in_array($request, $acceptable, true)) {
+            return;
         }
-        if ($request !== 'on' && $request !== 'yes' && $request !== 1 && $request !== true) {
-            throw new RequestException(ERR_VALIDATOR_ACCEPTED, $name);
-        }
+        throw new RequestException(ERR_VALIDATOR_ACCEPTED, $name);
     }
 
-    /** Поле для проверки должно быть "yes", "on", 1 или <i>true</i>, если другое поле для проверки равно указанному значению.
+    /** Поле для проверки должно быть "yes", "on", "1", 1, "true" или true,
+     * если другое поле для проверки равно указанному значению.
      * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
      *     Использование 'accepted_if:поле,значение'
      * @param string      $name
@@ -79,18 +88,61 @@ class Request
         $arr = explode(',', $param);
         $anotherName = $arr[0] ?? false;
         $value = $arr[1] ?? false;
+        $acceptable = ['yes', 'on', '1', 1, true, 'true'];
         if ($anotherName && $value && isset($this->input[$anotherName]) && $this->input[$anotherName] === $value) {
-            if (gettype($request) === 'string') {
-                $request = strtolower($request);
-            }
-            if ($request !== 'on' && $request !== 'yes' && $request !== 1 && $request !== true) {
+            if (!in_array($request, $acceptable, true)) {
                 throw new RequestException(ERR_VALIDATOR_ACCEPTED_IF, $name, null, $anotherName, $value);
             }
         }
     }
 
+    /** Поле для проверки должно быть "no", "off", "0", 0, "false" или false.
+     * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
+     *     Использование 'declined'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateDeclined(string $name, $request, ?string $param = null): void
+    {
+        $acceptable = ['no', 'off', '0', 0, false, 'false'];
+
+        if (in_array($request, $acceptable, true)) {
+            return;
+        }
+        throw new RequestException(ERR_VALIDATOR_DECLINED, $name);
+    }
+
+    /** Поле для проверки должно быть "no", "off", "0", 0, "false" или false,
+     * если другое поле для проверки равно указанному значению.
+     * Это полезно для проверки принятия "Условий предоставления услуг" или аналогичных полей.
+     *     Использование 'declined_if:поле,значение'
+     * @param string      $name
+     * @param             $request
+     * @param string|null $param
+     * @return void
+     * @throws RequestException
+     */
+    private function validateDeclined_if(string $name, $request, ?string $param = null): void
+    {
+        if (empty($param)) {
+            return;
+        }
+        $arr = explode(',', $param);
+        $anotherName = $arr[0] ?? false;
+        $value = $arr[1] ?? false;
+        $acceptable = ['no', 'off', '0', 0, false, 'false'];
+        if ($anotherName && $value && isset($this->input[$anotherName]) && $this->input[$anotherName] === $value) {
+            if (!in_array($request, $acceptable, true)) {
+                throw new RequestException(ERR_VALIDATOR_DECLINED_IF, $name, null, $anotherName, $value);
+            }
+        }
+    }
+
     /** Поле при проверке должно иметь допустимую запись A или AAAA в соответствии с функцией dns_get_record PHP.
-     * Имя хоста предоставленного URL извлекается с помощью функции parse_urlPHP перед передачей dns_get_record.
+     * Имя хоста предоставленного URL извлекается с помощью функции parse_url PHP перед передачей dns_get_record.
      *     Использование 'active_url'
      * @param string      $name
      * @param             $request
@@ -100,7 +152,18 @@ class Request
      */
     private function validateActive_url(string $name, $request, ?string $param = null): void
     {
-        //TODO Описать функцию active_url
+        if (is_string($request)) {
+            if ($url = parse_url($request, PHP_URL_HOST)) {
+                try {
+                    if (count(dns_get_record($url . '.', DNS_A | DNS_AAAA)) > 0) {
+                        return;
+                    };
+                } catch (Exception $e) {
+
+                }
+            }
+        }
+        throw new RequestException(ERR_VALIDATOR_ACTIVE_URL, $name);
     }
 
     /** Поле при проверке должно быть значением после заданной даты. Даты будут переданы в функцию strtotime PHP
@@ -187,25 +250,18 @@ class Request
      */
     private function validateMin(string $name, $request, ?string $param = null): void
     {
-        // TODO Сделать проверку размера файла
-        switch (gettype($request)) {
-            case 'array':
-                if (count($request) < $param) {
+        if ($this->getSize($request) >= $param) {
+            switch ($this->getType($request)) {
+                case self::TYPE_ARRAY:
                     throw new RequestException(ERR_VALIDATOR_MIN_COUNT, $name, $param);
-                }
-                return;
-            case 'integer':
-                if ($request < $param) {
-                    throw new RequestException(ERR_VALIDATOR_MIN_INTEGER, $name, $param);
-                }
-                return;
-            case 'string':
-                if (strlen($request) < $param) {
+                case self::TYPE_NUMERIC:
+                    throw new RequestException(ERR_VALIDATOR_MIN_NUMERIC, $name, $param);
+                case self::TYPE_FILE:
+                    throw new RequestException(ERR_VALIDATOR_MIN_FILE, $name, $param);
+                default:
                     throw new RequestException(ERR_VALIDATOR_MIN_STRING, $name, $param);
-                }
-                return;
+            }
         }
-        throw new RequestException(ERR_VALIDATOR_MIN, $name, $param);
     }
 
     /** Поле для проверки должно присутствовать во входных данных и не быть пустым.
@@ -298,8 +354,47 @@ class Request
      */
     private function validateBoolean(string $name, $request, ?string $param = null): void
     {
-        if (gettype($request) !== 'boolean' && $request !== 1 && $request !== 0 && $request !== '1' && $request !== '0') {
+        $acceptable = [true, false, 1, 0, '1', '0'];
+        if (!in_array($request, $acceptable, true)) {
             throw new RequestException(ERR_VALIDATOR_BOOLEAN, $name);
         }
+    }
+
+    /** Возвращает размер:
+     * - если целое число - его значение;
+     * - если массив - количество элементов массива;
+     * - если файл - размер файла в килобайтах;
+     * - если строка - длинна строки.
+     * @param $value
+     * @return false|float|int|string
+     */
+    private function getSize($value)
+    {
+        switch (gettype($value)) {
+            case self::TYPE_NUMERIC:
+                return $value;
+            case self::TYPE_ARRAY:
+                return count($value);
+            case self::TYPE_FILE:
+                return $value->getSize() / 1024;
+            default:
+                return mb_strlen($value ?? '');
+        }
+    }
+
+    /** Возвращает тип данных для функции getSize().
+     * @param $value
+     * @return string
+     */
+    private function getType($value): string
+    {
+        if (is_numeric($value)) {
+            return self::TYPE_NUMERIC;
+        } elseif (is_array($value)) {
+            return self::TYPE_ARRAY;
+        } elseif ($value instanceof \SplFileInfo) {
+            return self::TYPE_FILE;
+        }
+        return self::TYPE_STRING;
     }
 }
