@@ -31,12 +31,12 @@ class RequestRegister extends AlefRequest
             'lastname'  => ['required'],
         ]);
 
-        $this->grantAccess();
-
-        $res = $this->getStub();
-        $res[self::KEY_STATUS] = 0;
-
-        return $res;
+//        $this->grantAccess();
+//
+//        $res = $this->getStub();
+//        $res[self::KEY_STATUS] = 0;
+//
+//        return $res;
     }
 
     public function getStub()

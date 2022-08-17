@@ -655,13 +655,10 @@ class Request
     private function getDateTimeWithOptionalFormat(string $format, string $value): \DateTime
     {
         if ($date = \DateTime::createFromFormat('!'.$format, $value)) {
-            echo $date->format('Y-m-d') . PHP_EOL;
             return $date;
         }
         try {
-            $date = new \DateTime($value);
-            echo $date->format('Y-m-d') . PHP_EOL;
-            return $date;
+            return new \DateTime($value);
         } catch (Exception $e) {
             throw new RequestException(ERR_VALIDATOR_DATE, $value);
         }
